@@ -28,6 +28,15 @@ def create_database():
         conn.commit()
     except errors.DuplicateTable:
         conn.rollback()
+    try:
+        cur.execute('''CREATE TABLE WHITELIST
+              (USER_ID BIGINT NOT NULL,
+              CHAT_ID BIGINT NOT NULL,
+              PRIMARY KEY (USER_ID, CHAT_ID)
+              );''')
+        conn.commit()
+    except errors.DuplicateTable:
+        conn.rollback()
     return conn, cur
 
 
@@ -35,7 +44,10 @@ conn, cur = create_database()
 
 
 def add(chat_id, msg_id, message, start, end, repeat):
-    cur.execute("INSERT INTO REMINDER VALUES (%s, %s, %s, %s, %s, %s)", [chat_id, msg_id, message, start, end, repeat])
+    try:
+        cur.execute("INSERT INTO REMINDER VALUES (%s, %s, %s, %s, %s, %s)", [chat_id, msg_id, message, start, end, repeat])
+    except errors.UniqueViolation:
+        conn.rollback()
     conn.commit()
 
 
@@ -44,6 +56,27 @@ def delete(chat_id, msg_id):
     conn.commit()
 
 
-def select():
-    cur.execute("SELECT * FROM REMINDER;")
+def select(chat_id=None):
+    if chat_id:
+        cur.execute("SELECT * FROM REMINDER WHERE CHAT_ID=(%s);", [chat_id])
+    else:
+        cur.execute("SELECT * FROM REMINDER;")
+    return cur.fetchall()
+
+
+def add_user(user_id, chat_id):
+    try:
+        cur.execute("INSERT INTO WHITELIST VALUES (%s, %s)", [user_id, chat_id])
+    except errors.UniqueViolation:
+        conn.rollback()
+    conn.commit()
+
+
+def delete_user(user_id, chat_id):
+    cur.execute("DELETE FROM WHITELIST WHERE USER_ID=(%s) AND CHAT_ID=(%s)", [user_id, chat_id])
+    conn.commit()
+
+
+def select_user():
+    cur.execute("SELECT * FROM WHITELIST;")
     return cur.fetchall()
