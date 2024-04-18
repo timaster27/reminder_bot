@@ -33,16 +33,17 @@ def handle_message(bot: Client, message: Message):
     whitelist = select_user()
     chat_id = message.chat.id
     if (message.from_user.id, chat_id) not in whitelist:
+        bot_username = bot.get_me().username
         bot.send_message(chat_id,
-                         f"You ({message.from_user.username}) don't have access in Symmio Reminder for this chat!\n"
-                         f"(check PV)")
+                         f"@{message.from_user.username}, You don't have access in Symmio Reminder for this chat!\n"
+                         f"(check @{bot_username})")
         try:
             bot.send_message(message.from_user.id,
-                             f"{message.from_user.username} to get access in Symmio Reminder forward this message to admin"
+                             f"@{message.from_user.username} to get access in Symmio Reminder forward this message to admin"
                              f"\nUserID: {message.from_user.id}  and ChatID: {chat_id}")
         except errors.exceptions.bad_request_400.PeerIdInvalid:
             bot.send_message(chat_id,
-                             f"{message.from_user.username}! first start bot in your PV then /start again in this chat!")
+                             f"{message.from_user.username}! first start bot in @{bot_username} then /start again in this chat!")
         return
     if chat_id not in chatId_account:
         chatId_account[chat_id] = Account()
@@ -129,16 +130,17 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
     whitelist = select_user()
     chat_id = query.message.chat.id
     if (query.from_user.id, chat_id) not in whitelist:
+        bot_username = bot.get_me().username
         bot.send_message(chat_id,
-                         f"You ({query.from_user.username}) don't have access in Symmio Reminder for this chat!\n"
-                         f"(check PV)")
+                         f"@{query.from_user.username} You don't have access in Symmio Reminder for this chat!\n"
+                         f"(check @{bot_username})")
         try:
             bot.send_message(query.from_user.id,
                              f"{query.from_user.username} to get access in Symmio Reminder forward this message to admin"
                              f"\nUserID: {query.from_user.id}  and ChatID: {chat_id}")
         except errors.exceptions.bad_request_400.PeerIdInvalid:
             bot.send_message(chat_id,
-                             f"{query.from_user.username}! first start bot in your PV then /start again in this chat!")
+                             f"{query.from_user.username}! first start bot in @{bot_username} then /start again in this chat!")
         return
     if chat_id not in chatId_account:
         chatId_account[chat_id] = Account()
