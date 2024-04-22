@@ -18,7 +18,7 @@ def create_database():
     try:
         cur.execute('''CREATE TABLE REMINDER
               (CHAT_ID BIGINT NOT NULL,
-              MSG_ID BIGINT NOT NULL,
+              MSG_ID VARCHAR NOT NULL,
               MESSAGE VARCHAR,
               START_DATE TIMESTAMP,
               END_DATE TIMESTAMP,
@@ -30,9 +30,7 @@ def create_database():
         conn.rollback()
     try:
         cur.execute('''CREATE TABLE WHITELIST
-              (USER_ID BIGINT NOT NULL,
-              CHAT_ID BIGINT NOT NULL,
-              PRIMARY KEY (USER_ID, CHAT_ID)
+              (USER_ID BIGINT NOT NULL PRIMARY KEY
               );''')
         conn.commit()
     except errors.DuplicateTable:
@@ -64,16 +62,16 @@ def select(chat_id=None):
     return cur.fetchall()
 
 
-def add_user(user_id, chat_id):
+def add_user(user_id):
     try:
-        cur.execute("INSERT INTO WHITELIST VALUES (%s, %s)", [user_id, chat_id])
+        cur.execute("INSERT INTO WHITELIST VALUES (%s)", [user_id])
     except errors.UniqueViolation:
         conn.rollback()
     conn.commit()
 
 
-def delete_user(user_id, chat_id):
-    cur.execute("DELETE FROM WHITELIST WHERE USER_ID=(%s) AND CHAT_ID=(%s)", [user_id, chat_id])
+def delete_user(user_id):
+    cur.execute("DELETE FROM WHITELIST WHERE USER_ID=(%s)", [user_id])
     conn.commit()
 
 

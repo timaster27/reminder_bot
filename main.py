@@ -5,12 +5,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from pyrogram import Client, errors
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-from config import BOT_NAME, BOT_TOKEN, API_ID, API_HASH, PROXY, CHAT_ID
+from config import BOT_NAME, BOT_TOKEN, API_ID, API_HASH, PROXY, ADMIN_ID
 from db import add, select, delete, add_user, select_user
 
 client = Client(name=BOT_NAME, bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH, proxy=PROXY)
+add_user(ADMIN_ID)
 scheduler = BackgroundScheduler()
-add_user(CHAT_ID, CHAT_ID)
+no_limit = datetime(9999, 12, 31, 23, 59, 59)
 
 
 class Account:
@@ -18,13 +19,15 @@ class Account:
         self.send_status = 0
         self.mode = None
         self.start = (datetime.now() + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        self.end = datetime(9999, 12, 31, 23, 59, 59)
-        self.reminder = dict(message='', start=self.start, end=self.end, repeat='Never')
+        self.end = no_limit
+        self.msg = ''
+        self.repeat = 'Never'
+        self.destination = 'here'
         self.messages = dict()
 
 
-home_key = [[InlineKeyboardButton('add Reminder', 'a')], [InlineKeyboardButton('delete', 'd')],
-            [InlineKeyboardButton('add user', 'u')]]
+home_key = [[InlineKeyboardButton('add Reminder', 'a')], [InlineKeyboardButton('delete', 'dd')],
+            [InlineKeyboardButton('add user', 'u')], [InlineKeyboardButton('ChatID', 'c')]]
 chatId_account = dict()
 
 
@@ -32,7 +35,7 @@ chatId_account = dict()
 def handle_message(bot: Client, message: Message):
     whitelist = select_user()
     chat_id = message.chat.id
-    if (message.from_user.id, chat_id) not in whitelist:
+    if (message.from_user.id,) not in whitelist:
         bot_username = bot.get_me().username
         bot.send_message(chat_id,
                          f"@{message.from_user.username}, You don't have access in Symmio Reminder for this chat!\n"
@@ -40,7 +43,7 @@ def handle_message(bot: Client, message: Message):
         try:
             bot.send_message(message.from_user.id,
                              f"@{message.from_user.username} to get access in Symmio Reminder forward this message to admin"
-                             f"\nUserID: {message.from_user.id}  and ChatID: {chat_id}")
+                             f"\nUserID: `{message.from_user.id}`")
         except errors.exceptions.bad_request_400.PeerIdInvalid:
             bot.send_message(chat_id,
                              f"{message.from_user.username}! first start bot in @{bot_username} then /start again in this chat!")
@@ -54,19 +57,21 @@ def handle_message(bot: Client, message: Message):
             chatId_account[chat_id].mode = None
             chatId_account[chat_id].start = (datetime.now() + timedelta(hours=1)).replace(minute=0, second=0,
                                                                                           microsecond=0)
-            chatId_account[chat_id].reminder = dict(message='', start=chatId_account[chat_id].start,
-                                                    end=chat.end, repeat='Never')
+            chatId_account[chat_id].end = no_limit
+            chatId_account[chat_id].msg = ''
+            chatId_account[chat_id].repeat = 'Never'
+            chatId_account[chat_id].destination = 'here'
             bot.send_message(chat_id, 'Welcome to Symmio Reminder', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'm':
-            chatId_account[chat_id].reminder["message"] = message.text
-            end_date = 'No limit' if chat.reminder["end"] == chat.end else chat.reminder["end"]
-            bot.send_message(chat_id,
-                             f'Add new Reminder\nYour message:\n\n{chatId_account[chat_id].reminder["message"]}',
+            chatId_account[chat_id].msg = message.text
+            end_date = 'No limit' if chat.end == no_limit else chat.end
+            bot.send_message(chat_id, f'Add new Reminder\nYour message:\n\n{chatId_account[chat_id].msg}',
                              reply_markup=InlineKeyboardMarkup(
-                                 [[InlineKeyboardButton(f'edit message', 'm')],
-                                  [InlineKeyboardButton(f'start date: {chat.reminder["start"]}', 'sd'),
+                                 [[InlineKeyboardButton(f'edit message', 'm'),
+                                   InlineKeyboardButton(f'destination: {chat.destination}', 'dst')],
+                                  [InlineKeyboardButton(f'start date: {chat.start}', 'sd'),
                                    InlineKeyboardButton(f'end date: {end_date}', 'ed')],
-                                  [InlineKeyboardButton(f'repeat: {chat.reminder["repeat"]}', 'r'),
+                                  [InlineKeyboardButton(f'repeat: {chat.repeat}', 'r'),
                                    InlineKeyboardButton('Submit', 's')]]))
         elif status in ['year', 'month', 'day', 'hour', 'minute', 'second']:
             x = message.text
@@ -74,14 +79,14 @@ def handle_message(bot: Client, message: Message):
                 e = 2
                 while e:
                     try:
-                        chatId_account[chat_id].reminder[chat.mode] = chatId_account[chat_id].reminder[
-                            chat.mode].replace(**{status: int(x)})
+                        setattr(chatId_account[chat_id], chat.mode,
+                                getattr(chat, chat.mode).replace(**{status: int(x)}))
                         e = False
                     except ValueError:
                         e -= 1
-                        chatId_account[chat_id].reminder[chat.mode] -= timedelta(days=1)
+                        setattr(chatId_account[chat_id], chat.mode, getattr(chat, chat.mode) - timedelta(days=1))
                 nl = [InlineKeyboardButton('No limit', 'nl')] if chat.mode == 'end' else []
-                date = chatId_account[chat_id].reminder[chat.mode]
+                date = getattr(chatId_account[chat_id], chat.mode)
                 bot.send_message(chat_id, f'{chat.mode} date changed successfully!',
                                  reply_markup=InlineKeyboardMarkup(
                                      [[InlineKeyboardButton(f'year: {date.year}', 'year'),
@@ -96,30 +101,61 @@ def handle_message(bot: Client, message: Message):
         elif status in ['days', 'hours', 'minutes', 'weeks']:
             x = message.text
             if x.isdigit():
-                repeat = chatId_account[chat_id].reminder['repeat'] = f'every {x} {status}'
-                end_date = 'No limit' if chat.reminder["end"] == chat.end else chat.reminder["end"]
+                repeat = chatId_account[chat_id].repeat = f'every {x} {status}'
+                end_date = 'No limit' if chat.end == no_limit else chat.end
                 bot.send_message(chat_id,
-                                 f'*** Reminder ***\nYour message:\n\n{chat.reminder["message"]}',
+                                 f'*** Reminder ***\nYour message:\n\n{chat.msg}',
                                  reply_markup=InlineKeyboardMarkup(
-                                     [[InlineKeyboardButton(f'edit message', 'm')],
-                                      [InlineKeyboardButton(f'start date: {chat.reminder["start"]}', 'sd'),
+                                     [[InlineKeyboardButton(f'edit message', 'm'),
+                                       InlineKeyboardButton(f'destination: {chat.destination}', 'dst')],
+                                      [InlineKeyboardButton(f'start date: {chat.start}', 'sd'),
                                        InlineKeyboardButton(f'end date: {end_date}', 'ed')],
                                       [InlineKeyboardButton(f'repeat: {repeat}', 'r'),
                                        InlineKeyboardButton('Submit', 's')]]))
             else:
                 bot.send_message(chat_id, 'invalid message')
+        elif status == 'dd':
+            x = message.text
+            if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
+                messages = select(x)
+                chatId_account[chat_id].destination = x
+            else:
+                messages = select(chat_id)
+                chatId_account[chat_id].destination = chat_id
+            all_rem = ''
+            for i in messages:
+                all_rem += f'ID: `{i[1]}` msg: {i[2]} start: {i[3]} end: {i[4] if i[4] != no_limit else "No limit"} repeat: {i[5]}\n'
+            all_rem += '\nenter ID to delete reminder:'
+            bot.send_message(chat_id, all_rem)
+            chatId_account[chat_id].send_status = 'd'
+            return
         elif status == 'd':
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
-                delete_reminder(chat_id, int(x))
+                dst = chat_id if chat.destination == 'here' else int(chat.destination)
+                delete_reminder(dst, x)
                 bot.send_message(chat_id, 'Reminder deleted successfully!', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'u':
-            x = message.text.split()
-            if (x[0].isdigit() or (x[0][0] == '-' and x[0][1:].isdigit())) and (
-                    x[1].isdigit() or (x[1][0] == '-' and x[1][1:].isdigit())):
-                add_user(x[0], x[1])
-                bot.send_message(x[0], 'You got access in a chat!')
+            x = message.text
+            if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
+                add_user(x)
+                bot.send_message(x, 'You got access in a chat!')
                 bot.send_message(chat_id, 'User added successfully!', reply_markup=InlineKeyboardMarkup(home_key))
+        elif status == 'dst':
+            x = message.text
+            if x == 'here':
+                chatId_account[chat_id].destination = 'here'
+            if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
+                chatId_account[chat_id].destination = int(x)
+                end_date = 'No limit' if chat.end == no_limit else chat.end
+                bot.send_message(chat_id, f'*** Reminder ***\nYour message:\n\n{chat.msg}',
+                                 reply_markup=InlineKeyboardMarkup(
+                                     [[InlineKeyboardButton(f'edit message', 'm'),
+                                       InlineKeyboardButton(f'destination: {chat.destination}', 'dst')],
+                                      [InlineKeyboardButton(f'start date: {chat.start}', 'sd'),
+                                       InlineKeyboardButton(f'end date: {end_date}', 'ed')],
+                                      [InlineKeyboardButton(f'repeat: {chat.repeat}', 'r'),
+                                       InlineKeyboardButton('Submit', 's')]]))
         else:
             bot.send_message(chat_id, 'invalid message')
         chatId_account[chat_id].send_status = 0
@@ -129,7 +165,7 @@ def handle_message(bot: Client, message: Message):
 def handle_callback_query(bot: Client, query: CallbackQuery):
     whitelist = select_user()
     chat_id = query.message.chat.id
-    if (query.from_user.id, chat_id) not in whitelist:
+    if (query.from_user.id,) not in whitelist:
         bot_username = bot.get_me().username
         bot.send_message(chat_id,
                          f"@{query.from_user.username} You don't have access in Symmio Reminder for this chat!\n"
@@ -137,7 +173,7 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         try:
             bot.send_message(query.from_user.id,
                              f"{query.from_user.username} to get access in Symmio Reminder forward this message to admin"
-                             f"\nUserID: {query.from_user.id}  and ChatID: {chat_id}")
+                             f"\nUserID: `{query.from_user.id}`")
         except errors.exceptions.bad_request_400.PeerIdInvalid:
             bot.send_message(chat_id,
                              f"{query.from_user.username}! first start bot in @{bot_username} then /start again in this chat!")
@@ -150,13 +186,8 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
     if status == 'a':
         chatId_account[chat_id].send_status = 'm'
         bot.send_message(chat_id, 'enter your message: ')
-    elif status == 'd':
-        messages = select(chat_id)
-        all_rem = ''
-        for i in messages:
-            all_rem += f'ID:{i[1]} msg:{i[2]} start:{i[3]} end:{i[4]} repeat:{i[5]}\n'
-        all_rem += 'enter ID to delete reminder:'
-        bot.send_message(chat_id, all_rem)
+    elif status == 'dd':
+        bot.send_message(chat_id, 'enter another ChatID or "here": ')
     elif status == 'm':
         bot.send_message(chat_id, 'enter your new message: ')
     elif status in ['sd', 'ed']:
@@ -166,7 +197,7 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         else:
             chatId_account[chat_id].mode = 'end'
             nl = [InlineKeyboardButton('No limit', 'nl')]
-        date = chat.reminder[chatId_account[chat_id].mode]
+        date = getattr(chat, chatId_account[chat_id].mode)
         bot.send_message(chat_id, f'edit {chatId_account[chat_id].mode} date: ',
                          reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f'year: {date.year}', 'year'),
                                                              InlineKeyboardButton(f'month: {date.month}', 'month'),
@@ -176,48 +207,58 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
                                                              InlineKeyboardButton(f'second: {date.second}', 'second')],
                                                             nl + [InlineKeyboardButton('back to reminder', 'b')]]))
     elif status in ['year', 'month', 'day', 'hour', 'minute', 'second']:
-        bot.send_message(chat_id, f'enter new {status}')
+        bot.send_message(chat_id, f'enter new {status}:')
     elif status == 'nl':
-        chatId_account[chat_id].reminder['end'] = chat.end
+        chatId_account[chat_id].end = no_limit
     elif status in ['b', 'n']:
         if status == 'n':
-            chatId_account[chat_id].reminder["repeat"] = 'Never'
-        end_date = 'No limit' if chat.reminder["end"] == chat.end else chat.reminder["end"]
-        bot.send_message(chat_id, f'*** Reminder ***\nYour message:\n\n{chat.reminder["message"]}',
+            chatId_account[chat_id].repeat = 'Never'
+        end_date = 'No limit' if chat.end == no_limit else chat.end
+        bot.send_message(chat_id, f'*** Reminder ***\nYour message:\n\n{chat.msg}',
                          reply_markup=InlineKeyboardMarkup(
-                             [[InlineKeyboardButton(f'edit message', 'm')],
-                              [InlineKeyboardButton(f'start date: {chat.reminder["start"]}', 'sd'),
+                             [[InlineKeyboardButton(f'edit message', 'm'),
+                               InlineKeyboardButton(f'destination: {chat.destination}', 'dst')],
+                              [InlineKeyboardButton(f'start date: {chat.start}', 'sd'),
                                InlineKeyboardButton(f'end date: {end_date}', 'ed')],
-                              [InlineKeyboardButton(f'repeat: {chatId_account[chat_id].reminder["repeat"]}', 'r'),
+                              [InlineKeyboardButton(f'repeat: {chatId_account[chat_id].repeat}', 'r'),
                                InlineKeyboardButton('Submit', 's')]]))
     elif status == 'r':
-        bot.send_message(chat_id, f'Repeat by N _____:',
+        bot.send_message(chat_id, f'Repeat by N ?:',
                          reply_markup=InlineKeyboardMarkup(
                              [[InlineKeyboardButton('Minutes', 'minutes'), InlineKeyboardButton('Hours', 'hours')],
                               [InlineKeyboardButton('Days', 'days'), InlineKeyboardButton('Weeks', 'weeks')],
                               [InlineKeyboardButton('Never', 'n')]]))
     elif status in ['days', 'hours', 'minutes', 'weeks']:
-        bot.send_message(chat_id, f'Repeat every ?? {status}')
+        bot.send_message(chat_id, f'Repeat every ? {status}')
     elif status == 's':
         msg_id = query.message.id
-        add(chat_id, msg_id, chat.reminder['message'], chat.reminder['start'], chat.reminder['end'],
-            chat.reminder['repeat'])
+        dst = chat_id if chat.destination == 'here' else int(chat.destination)
+        add(dst, str(msg_id) + str(chat_id), chat.msg, chat.start, chat.end, chat.repeat)
         bot.send_message(chat_id, 'Reminder added successfully', reply_markup=InlineKeyboardMarkup(home_key))
-        repeat = chat.reminder['repeat'].split()
+        repeat = chat.repeat.split()
         if len(repeat) == 3:
-            chatId_account[chat_id].messages[msg_id] = scheduler.add_job(send_msg, trigger='interval',
-                                                                         args=[chat_id, chat.reminder['message']],
-                                                                         start_date=chat.reminder['start'],
-                                                                         end_date=chat.reminder['end'],
-                                                                         **{repeat[2]: int(repeat[1])})
+            chatId_account[dst].messages[str(msg_id) + str(chat_id)] = scheduler.add_job(send_msg, trigger='interval',
+                                                                                         args=[dst, chat.msg],
+                                                                                         start_date=chat.start,
+                                                                                         end_date=chat.end,
+                                                                                         **{repeat[2]: int(repeat[1])})
         else:
-            chatId_account[chat_id].messages[msg_id] = scheduler.add_job(no_repeat, trigger='interval',
-                                                                         args=[chat_id, chat.reminder['message'],
-                                                                               msg_id],
-                                                                         start_date=chat.reminder['start'])
-        chatId_account[chat_id].reminder = dict(message='', start=chat.start, end=chat.end, repeat='Never')
+            chatId_account[dst].messages[str(msg_id) + str(chat_id)] = scheduler.add_job(no_repeat, trigger='interval',
+                                                                                         args=[dst, chat.msg, msg_id],
+                                                                                         start_date=chat.start)
+        chatId_account[chat_id].msg = ''
+        chatId_account[chat_id].start = (datetime.now() + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        chatId_account[chat_id].end = no_limit
+        chatId_account[chat_id].repeat = 'Never'
+        chatId_account[chat_id].destination = 'here'
     elif status == 'u':
         bot.send_message(chat_id, 'enter UserID and ChatID with a space seperator:')
+    elif status == 'dst':
+        bot.send_message(chat_id, 'enter ChatID or "here": ')
+    elif status == 'c':
+        bot_username = bot.get_me().username
+        bot.send_message(query.from_user.id, f'ChatID: `{chat_id}`')
+        bot.send_message(chat_id, f'ChatID sent in PV @{bot_username}', reply_markup=InlineKeyboardMarkup(home_key))
     else:
         chatId_account[chat_id].send_status = 0
 
