@@ -143,7 +143,7 @@ def handle_message(bot: Client, message: Message):
                 bot.send_message(chat_id, 'User added successfully!', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'dst':
             x = message.text
-            if x == 'here':
+            if x.lower() == 'here':
                 chatId_account[chat_id].destination = 'here'
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 chatId_account[chat_id].destination = int(x)
@@ -237,22 +237,23 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         bot.send_message(chat_id, 'Reminder added successfully', reply_markup=InlineKeyboardMarkup(home_key))
         repeat = chat.repeat.split()
         if len(repeat) == 3:
-            chatId_account[dst].messages[str(msg_id) + str(chat_id)] = scheduler.add_job(send_msg, trigger='interval',
-                                                                                         args=[dst, chat.msg],
-                                                                                         start_date=chat.start,
-                                                                                         end_date=chat.end,
-                                                                                         **{repeat[2]: int(repeat[1])})
+            chatId_account[dst].messages[f'{msg_id}{chat_id}'] = scheduler.add_job(send_msg, trigger='interval',
+                                                                                   args=[dst, chat.msg],
+                                                                                   start_date=chat.start,
+                                                                                   end_date=chat.end,
+                                                                                   **{repeat[2]: int(repeat[1])})
         else:
-            chatId_account[dst].messages[str(msg_id) + str(chat_id)] = scheduler.add_job(no_repeat, trigger='interval',
-                                                                                         args=[dst, chat.msg, msg_id],
-                                                                                         start_date=chat.start)
+            chatId_account[dst].messages[f'{msg_id}{chat_id}'] = scheduler.add_job(no_repeat, trigger='interval',
+                                                                                   args=[dst, chat.msg,
+                                                                                         f'{msg_id}{chat_id}'],
+                                                                                   start_date=chat.start)
         chatId_account[chat_id].msg = ''
         chatId_account[chat_id].start = (datetime.now() + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         chatId_account[chat_id].end = no_limit
         chatId_account[chat_id].repeat = 'Never'
         chatId_account[chat_id].destination = 'here'
     elif status == 'u':
-        bot.send_message(chat_id, 'enter UserID and ChatID with a space seperator:')
+        bot.send_message(chat_id, 'enter UserID:')
     elif status == 'dst':
         bot.send_message(chat_id, 'enter ChatID or "here": ')
     elif status == 'c':
