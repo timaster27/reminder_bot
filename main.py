@@ -5,10 +5,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from pyrogram import Client, errors
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-from config import BOT_NAME, BOT_TOKEN, API_ID, API_HASH, PROXY, ADMIN_ID
-from db import add, select, delete, add_user, select_user
+from config import BOT_NAME, BOT_TOKEN, PROXY, ADMIN_ID
+from db import add, select, delete, add_user, select_user, delete_user
 
-client = Client(name=BOT_NAME, bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH, proxy=PROXY)
+client = Client(name=BOT_NAME, bot_token=BOT_TOKEN, proxy=PROXY)
 add_user(ADMIN_ID)
 scheduler = BackgroundScheduler()
 no_limit = datetime(9999, 12, 31, 23, 59, 59)
@@ -26,8 +26,8 @@ class Account:
         self.messages = dict()
 
 
-home_key = [[InlineKeyboardButton('add Reminder', 'a')], [InlineKeyboardButton('delete', 'dd')],
-            [InlineKeyboardButton('add user', 'u')]]
+home_key = [[InlineKeyboardButton('add Reminder', 'ar')], [InlineKeyboardButton('delete Reminder', 'dr')],
+            [InlineKeyboardButton('add user', 'au'), InlineKeyboardButton('delete user', 'du')]]
 chatId_account = dict()
 
 
@@ -117,7 +117,7 @@ def handle_message(bot: Client, message: Message):
                                        InlineKeyboardButton('Submit', 's')]]))
             else:
                 bot.send_message(chat_id, 'invalid message')
-        elif status == 'dd':
+        elif status == 'dr':
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 messages = select(x)
@@ -136,14 +136,22 @@ def handle_message(bot: Client, message: Message):
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 dst = chat_id if chat.destination == 'here' else int(chat.destination)
-                delete_reminder(dst, x)
-                bot.send_message(chat_id, 'Reminder deleted successfully!', reply_markup=InlineKeyboardMarkup(home_key))
-        elif status == 'u':
+                if not delete_reminder(dst, x):
+                    bot.send_message(chat_id, "Reminder deleted successfully!", reply_markup=InlineKeyboardMarkup(home_key))
+                else:
+                    bot.send_message(chat_id, "Doesn't Exist!", reply_markup=InlineKeyboardMarkup(home_key))
+        elif status == 'au':
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 add_user(x)
                 bot.send_message(x, 'You have been granted access!')
                 bot.send_message(chat_id, 'User added successfully!', reply_markup=InlineKeyboardMarkup(home_key))
+        elif status == 'du':
+            x = message.text
+            if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
+                delete_user(x)
+                bot.send_message(x, 'Your access has been revoked!')
+                bot.send_message(chat_id, 'User deleted successfully!', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'dst':
             x = message.text
             if x.lower() == 'here':
@@ -186,10 +194,10 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
     chatId_account[chat_id].send_status = query.data
     chat = chatId_account[chat_id]
     status = chat.send_status
-    if status == 'a':
+    if status == 'ar':
         chatId_account[chat_id].send_status = 'm'
         bot.send_message(chat_id, 'enter your message: ')
-    elif status == 'dd':
+    elif status == 'dr':
         bot.send_message(chat_id, 'enter another ChatID or "here": ')
     elif status == 'm':
         bot.send_message(chat_id, 'enter your new message: ')
@@ -255,7 +263,7 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         chatId_account[chat_id].end = no_limit
         chatId_account[chat_id].repeat = 'Never'
         chatId_account[chat_id].destination = 'here'
-    elif status == 'u':
+    elif status in ['au', 'du']:
         bot.send_message(chat_id, 'enter UserID:')
     elif status == 'dst':
         bot.send_message(chat_id, 'enter ChatID or "here": ')
@@ -282,9 +290,12 @@ def send_msg(chatId, msg):
 
 
 def delete_reminder(chatId, msgId):
-    chatId_account[chatId].messages[msgId].remove()
-    del chatId_account[chatId].messages[msgId]
-    delete(chatId, msgId)
+    try:
+        chatId_account[chatId].messages[msgId].remove()
+        del chatId_account[chatId].messages[msgId]
+        delete(chatId, msgId)
+    except KeyError:
+        return 1
 
 
 for rec in select():
