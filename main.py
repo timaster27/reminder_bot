@@ -27,7 +27,7 @@ class Account:
 
 
 home_key = [[InlineKeyboardButton('add Reminder', 'a')], [InlineKeyboardButton('delete', 'dd')],
-            [InlineKeyboardButton('add user', 'u')], [InlineKeyboardButton('ChatID', 'c')]]
+            [InlineKeyboardButton('add user', 'u')]]
 chatId_account = dict()
 
 
@@ -61,7 +61,10 @@ def handle_message(bot: Client, message: Message):
             chatId_account[chat_id].msg = ''
             chatId_account[chat_id].repeat = 'Never'
             chatId_account[chat_id].destination = 'here'
-            bot.send_message(chat_id, 'Welcome to Symmio Reminder', reply_markup=InlineKeyboardMarkup(home_key))
+            if chat_id == message.from_user.id:
+                bot.send_message(chat_id, 'Welcome to Symmio Reminder', reply_markup=InlineKeyboardMarkup(home_key))
+            else:
+                bot.send_message(chat_id, 'Symmio Reminder start working')
         elif status == 'm':
             chatId_account[chat_id].msg = message.text
             end_date = 'No limit' if chat.end == no_limit else chat.end
@@ -139,7 +142,7 @@ def handle_message(bot: Client, message: Message):
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 add_user(x)
-                bot.send_message(x, 'You got access in a chat!')
+                bot.send_message(x, 'You have been granted access!')
                 bot.send_message(chat_id, 'User added successfully!', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'dst':
             x = message.text
@@ -256,10 +259,6 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         bot.send_message(chat_id, 'enter UserID:')
     elif status == 'dst':
         bot.send_message(chat_id, 'enter ChatID or "here": ')
-    elif status == 'c':
-        bot_username = bot.get_me().username
-        bot.send_message(query.from_user.id, f'ChatID: `{chat_id}`')
-        bot.send_message(chat_id, f'ChatID sent in PV @{bot_username}', reply_markup=InlineKeyboardMarkup(home_key))
     else:
         chatId_account[chat_id].send_status = 0
 
