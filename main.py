@@ -8,7 +8,10 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from config import BOT_NAME, BOT_TOKEN, PROXY, ADMIN_ID
 from db import add, select, delete, add_user, select_user, delete_user
 
-client = Client(name=BOT_NAME, bot_token=BOT_TOKEN, proxy=PROXY)
+if PROXY ==[] :
+    client = Client(name=BOT_NAME, bot_token=BOT_TOKEN)
+else:
+    client = Client(name=BOT_NAME, bot_token=BOT_TOKEN, proxy=PROXY)
 add_user(ADMIN_ID)
 scheduler = BackgroundScheduler()
 no_limit = datetime(9999, 12, 31, 23, 59, 59)
