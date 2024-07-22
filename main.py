@@ -8,7 +8,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from config import BOT_NAME, BOT_TOKEN, PROXY, ADMIN_ID
 from db import add, select, delete, add_user, select_user, delete_user
 
-if PROXY ==[] :
+if not PROXY:
     client = Client(name=BOT_NAME, bot_token=BOT_TOKEN)
 else:
     client = Client(name=BOT_NAME, bot_token=BOT_TOKEN, proxy=PROXY)
@@ -140,7 +140,8 @@ def handle_message(bot: Client, message: Message):
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 dst = chat_id if chat.destination == 'here' else int(chat.destination)
                 if not delete_reminder(dst, x):
-                    bot.send_message(chat_id, "Reminder deleted successfully!", reply_markup=InlineKeyboardMarkup(home_key))
+                    bot.send_message(chat_id, "Reminder deleted successfully!",
+                                     reply_markup=InlineKeyboardMarkup(home_key))
                 else:
                     bot.send_message(chat_id, "Doesn't Exist!", reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'au':
@@ -274,13 +275,6 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         chatId_account[chat_id].send_status = 0
 
 
-async def main():
-    async with client:
-        while True:
-            await client.get_me()
-            time.sleep(10)
-
-
 def no_repeat(chatId, msg, msgId):
     client.send_message(chatId, msg)
     chatId_account[chatId].messages[msgId].remove()
@@ -323,4 +317,4 @@ for rec in select():
             delete(rec[0], rec[1])
 
 scheduler.start()
-client.run(main())
+client.run()
