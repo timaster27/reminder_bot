@@ -1,6 +1,6 @@
-from psycopg import connect, sql, errors
+from psycopg import connect, errors
 
-from config import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
+from settings import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS
 
 
 def create_database():
@@ -34,7 +34,8 @@ conn, cur = create_database()
 
 def add(chat_id, msg_id, message, start, end, repeat):
     try:
-        cur.execute("INSERT INTO REMINDER VALUES (%s, %s, %s, %s, %s, %s)", [chat_id, msg_id, message, start, end, repeat])
+        cur.execute("INSERT INTO REMINDER VALUES (%s, %s, %s, %s, %s, %s)",
+                    [chat_id, msg_id, message, start, end, repeat])
     except errors.UniqueViolation:
         conn.rollback()
     conn.commit()

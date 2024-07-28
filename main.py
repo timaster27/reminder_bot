@@ -1,12 +1,11 @@
-import time
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from pyrogram import Client, errors
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-from config import BOT_NAME, BOT_TOKEN, PROXY, ADMIN_ID
 from db import add, select, delete, add_user, select_user, delete_user
+from settings import BOT_NAME, BOT_TOKEN, PROXY, ADMIN_ID
 
 if not PROXY:
     client = Client(name=BOT_NAME, bot_token=BOT_TOKEN)
@@ -39,17 +38,18 @@ def handle_message(bot: Client, message: Message):
     whitelist = select_user()
     chat_id = message.chat.id
     if (message.from_user.id,) not in whitelist:
-        bot_username = bot.get_me().username
-        bot.send_message(chat_id,
-                         f"@{message.from_user.username}, You don't have access in Symmio Reminder for this chat!\n"
-                         f"(check @{bot_username})")
-        try:
-            bot.send_message(message.from_user.id,
-                             f"@{message.from_user.username} to get access in Symmio Reminder forward this message to admin"
-                             f"\nUserID: `{message.from_user.id}`")
-        except errors.exceptions.bad_request_400.PeerIdInvalid:
+        if message.text.startswith('/') or message.reply_to_message.from_user.is_self:
+            bot_username = bot.get_me().username
             bot.send_message(chat_id,
-                             f"{message.from_user.username}! first start bot in @{bot_username} then /start again in this chat!")
+                             f"@{message.from_user.username}, You don't have access in Symmio Reminder for this chat!\n"
+                             f"(check @{bot_username})")
+            try:
+                bot.send_message(message.from_user.id,
+                                 f"@{message.from_user.username} to get access in Symmio Reminder forward this message to admin"
+                                 f"\nUserID: `{message.from_user.id}`")
+            except errors.exceptions.bad_request_400.PeerIdInvalid:
+                bot.send_message(chat_id,
+                                 f"{message.from_user.username}! first start bot in @{bot_username} then /start again in this chat!")
         return
     if chat_id not in chatId_account:
         chatId_account[chat_id] = Account()
@@ -172,7 +172,11 @@ def handle_message(bot: Client, message: Message):
                                       [InlineKeyboardButton(f'repeat: {chat.repeat}', 'r'),
                                        InlineKeyboardButton('Submit', 's')]]))
         else:
-            bot.send_message(chat_id, 'invalid message')
+            try:
+                if message.reply_to_message.from_user.is_self:
+                    bot.send_message(chat_id, 'invalid message')
+            except AttributeError:
+                pass
         chatId_account[chat_id].send_status = 0
 
 
