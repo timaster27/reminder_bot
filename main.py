@@ -4,7 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from pyrogram import Client, errors
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-from db import add, select, delete, add_user, select_user, delete_user
+from db import add, select_reminder, delete_reminder, add_user, select_user, delete_user
 from settings import BOT_NAME, BOT_TOKEN, PROXY, ADMIN_ID
 
 if not PROXY:
@@ -123,10 +123,10 @@ def handle_message(bot: Client, message: Message):
         elif status == 'dr':
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
-                messages = select(x)
+                messages = select_reminder(x)
                 chatId_account[chat_id].destination = x
             else:
-                messages = select(chat_id)
+                messages = select_reminder(chat_id)
                 chatId_account[chat_id].destination = chat_id
             all_rem = ''
             for i in messages:
@@ -139,7 +139,7 @@ def handle_message(bot: Client, message: Message):
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
                 dst = chat_id if chat.destination == 'here' else int(chat.destination)
-                if not delete_reminder(dst, x):
+                if not delete_rem(dst, x):
                     bot.send_message(chat_id, "Reminder deleted successfully!",
                                      reply_markup=InlineKeyboardMarkup(home_key))
                 else:
@@ -206,7 +206,10 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         chatId_account[chat_id].send_status = 'm'
         bot.send_message(chat_id, 'enter your message: ')
     elif status == 'dr':
-        bot.send_message(chat_id, 'enter another ChatID or "here": ')
+        chat_ids = ''
+        for c_id in {rec[0] for rec in select_reminder()}:
+            chat_ids += f'{bot.get_chat(c_id).title}: `{c_id}`\n'
+        bot.send_message(chat_id, chat_ids + 'enter another ChatID or "here": ')
     elif status == 'm':
         bot.send_message(chat_id, 'enter your new message: ')
     elif status in ['sd', 'ed']:
@@ -272,7 +275,11 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         chatId_account[chat_id].repeat = 'Never'
         chatId_account[chat_id].destination = 'here'
     elif status in ['au', 'du']:
-        bot.send_message(chat_id, 'enter UserID:')
+        users = ''
+        if status == 'du':
+            for user in whitelist:
+                users += f'@{bot.get_users(user[0]).username}: `{user[0]}`\n'
+        bot.send_message(chat_id, users + 'enter UserID:')
     elif status == 'dst':
         bot.send_message(chat_id, 'enter ChatID or "here": ')
     else:
@@ -283,23 +290,23 @@ def no_repeat(chatId, msg, msgId):
     client.send_message(chatId, msg)
     chatId_account[chatId].messages[msgId].remove()
     del chatId_account[chatId].messages[msgId]
-    delete(chatId, msgId)
+    delete_reminder(chatId, msgId)
 
 
 def send_msg(chatId, msg):
     client.send_message(chatId, msg)
 
 
-def delete_reminder(chatId, msgId):
+def delete_rem(chatId, msgId):
     try:
         chatId_account[chatId].messages[msgId].remove()
         del chatId_account[chatId].messages[msgId]
-        delete(chatId, msgId)
+        delete_reminder(chatId, msgId)
     except KeyError:
         return 1
 
 
-for rec in select():
+for rec in select_reminder():
     repeat = rec[5].split()
     if len(repeat) == 3:
         if datetime.now() <= rec[4]:
@@ -309,7 +316,7 @@ for rec in select():
                                                                         args=[rec[0], rec[2]], start_date=rec[3],
                                                                         end_date=rec[4], **{repeat[2]: int(repeat[1])})
         else:
-            delete(rec[0], rec[1])
+            delete_reminder(rec[0], rec[1])
     else:
         if datetime.now() <= rec[3]:
             if rec[0] not in chatId_account:
@@ -318,7 +325,7 @@ for rec in select():
                                                                         args=[rec[0], rec[2], rec[1]],
                                                                         start_date=rec[3])
         else:
-            delete(rec[0], rec[1])
+            delete_reminder(rec[0], rec[1])
 
 scheduler.start()
 client.run()

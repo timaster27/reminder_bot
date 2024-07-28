@@ -41,12 +41,12 @@ def add(chat_id, msg_id, message, start, end, repeat):
     conn.commit()
 
 
-def delete(chat_id, msg_id):
+def delete_reminder(chat_id, msg_id):
     cur.execute("DELETE FROM REMINDER WHERE CHAT_ID=(%s) AND MSG_ID=(%s)", [chat_id, msg_id])
     conn.commit()
 
 
-def select(chat_id=None):
+def select_reminder(chat_id=None):
     if chat_id:
         cur.execute("SELECT * FROM REMINDER WHERE CHAT_ID=(%s);", [chat_id])
     else:
