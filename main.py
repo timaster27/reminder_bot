@@ -147,21 +147,28 @@ def handle_message(bot: Client, message: Message):
         elif status == 'au':
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
-                add_user(x)
-                bot.send_message(x, 'You have been granted access!')
-                bot.send_message(chat_id, 'User added successfully!', reply_markup=InlineKeyboardMarkup(home_key))
+                try:
+                    bot.send_message(x, 'You have been granted access!')
+                    add_user(x)
+                    bot.send_message(chat_id, 'User added successfully!', reply_markup=InlineKeyboardMarkup(home_key))
+                except errors.exceptions.bad_request_400.PeerIdInvalid:
+                    bot.send_message(chat_id, 'User not found!', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'du':
             x = message.text
             if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
-                delete_user(x)
-                bot.send_message(x, 'Your access has been revoked!')
-                bot.send_message(chat_id, 'User deleted successfully!', reply_markup=InlineKeyboardMarkup(home_key))
+                try:
+                    bot.send_message(x, 'Your access has been revoked!')
+                    delete_user(x)
+                    bot.send_message(chat_id, 'User deleted successfully!', reply_markup=InlineKeyboardMarkup(home_key))
+                except errors.exceptions.bad_request_400.PeerIdInvalid:
+                    bot.send_message(chat_id, 'User not found!', reply_markup=InlineKeyboardMarkup(home_key))
         elif status == 'dst':
-            x = message.text
-            if x.lower() == 'here':
-                chatId_account[chat_id].destination = 'here'
-            if x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
-                chatId_account[chat_id].destination = int(x)
+            x = message.text.lower()
+            if x == 'here' or x.isdigit() or (x[0] == '-' and x[1:].isdigit()):
+                if x == 'here':
+                    chatId_account[chat_id].destination = 'here'
+                else:
+                    chatId_account[chat_id].destination = int(x)
                 end_date = 'No limit' if chat.end == no_limit else chat.end
                 bot.send_message(chat_id, f'*** Reminder ***\nYour message:\n\n{chat.msg}',
                                  reply_markup=InlineKeyboardMarkup(
@@ -184,6 +191,7 @@ def handle_message(bot: Client, message: Message):
 def handle_callback_query(bot: Client, query: CallbackQuery):
     whitelist = select_user()
     chat_id = query.message.chat.id
+    msg_id = query.message.id
     if (query.from_user.id,) not in whitelist:
         bot_username = bot.get_me().username
         bot.send_message(chat_id,
@@ -204,14 +212,14 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
     status = chat.send_status
     if status == 'ar':
         chatId_account[chat_id].send_status = 'm'
-        bot.send_message(chat_id, 'enter your message: ')
+        bot.edit_message_text(chat_id, message_id=msg_id, text='enter your message: ')
     elif status == 'dr':
         chat_ids = ''
         for c_id in {rec[0] for rec in select_reminder()}:
             chat_ids += f'{bot.get_chat(c_id).title}: `{c_id}`\n'
-        bot.send_message(chat_id, chat_ids + 'enter another ChatID or "here": ')
+        bot.edit_message_text(chat_id, message_id=msg_id, text=chat_ids + 'enter another ChatID or "here": ')
     elif status == 'm':
-        bot.send_message(chat_id, 'enter your new message: ')
+        bot.edit_message_text(chat_id, message_id=msg_id, text='enter your new message: ')
     elif status in ['sd', 'ed']:
         if status == 'sd':
             chatId_account[chat_id].mode = 'start'
@@ -220,43 +228,46 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
             chatId_account[chat_id].mode = 'end'
             nl = [InlineKeyboardButton('No limit', 'nl')]
         date = getattr(chat, chatId_account[chat_id].mode)
-        bot.send_message(chat_id, f'edit {chatId_account[chat_id].mode} date: ',
-                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f'year: {date.year}', 'year'),
-                                                             InlineKeyboardButton(f'month: {date.month}', 'month'),
-                                                             InlineKeyboardButton(f'day: {date.day}', 'day')],
-                                                            [InlineKeyboardButton(f'hour: {date.hour}', 'hour'),
-                                                             InlineKeyboardButton(f'minute: {date.minute}', 'minute'),
-                                                             InlineKeyboardButton(f'second: {date.second}', 'second')],
-                                                            nl + [InlineKeyboardButton('back to reminder', 'b')]]))
+        bot.edit_message_text(chat_id, message_id=msg_id, text=f'edit {chatId_account[chat_id].mode} date: ',
+                              reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(f'year: {date.year}', 'year'),
+                                                                  InlineKeyboardButton(f'month: {date.month}', 'month'),
+                                                                  InlineKeyboardButton(f'day: {date.day}', 'day')],
+                                                                 [InlineKeyboardButton(f'hour: {date.hour}', 'hour'),
+                                                                  InlineKeyboardButton(f'minute: {date.minute}',
+                                                                                       'minute'),
+                                                                  InlineKeyboardButton(f'second: {date.second}',
+                                                                                       'second')],
+                                                                 nl + [InlineKeyboardButton('back to reminder', 'b')]]))
     elif status in ['year', 'month', 'day', 'hour', 'minute', 'second']:
-        bot.send_message(chat_id, f'enter new {status}:')
+        bot.edit_message_text(chat_id, message_id=msg_id, text=f'enter new {status}:')
     elif status == 'nl':
         chatId_account[chat_id].end = no_limit
     elif status in ['b', 'n']:
         if status == 'n':
             chatId_account[chat_id].repeat = 'Never'
         end_date = 'No limit' if chat.end == no_limit else chat.end
-        bot.send_message(chat_id, f'*** Reminder ***\nYour message:\n\n{chat.msg}',
-                         reply_markup=InlineKeyboardMarkup(
-                             [[InlineKeyboardButton(f'edit message', 'm'),
-                               InlineKeyboardButton(f'destination: {chat.destination}', 'dst')],
-                              [InlineKeyboardButton(f'start date: {chat.start}', 'sd'),
-                               InlineKeyboardButton(f'end date: {end_date}', 'ed')],
-                              [InlineKeyboardButton(f'repeat: {chatId_account[chat_id].repeat}', 'r'),
-                               InlineKeyboardButton('Submit', 's')]]))
+        bot.edit_message_text(chat_id, message_id=msg_id, text=f'*** Reminder ***\nYour message:\n\n{chat.msg}',
+                              reply_markup=InlineKeyboardMarkup(
+                                  [[InlineKeyboardButton(f'edit message', 'm'),
+                                    InlineKeyboardButton(f'destination: {chat.destination}', 'dst')],
+                                   [InlineKeyboardButton(f'start date: {chat.start}', 'sd'),
+                                    InlineKeyboardButton(f'end date: {end_date}', 'ed')],
+                                   [InlineKeyboardButton(f'repeat: {chatId_account[chat_id].repeat}', 'r'),
+                                    InlineKeyboardButton('Submit', 's')]]))
     elif status == 'r':
-        bot.send_message(chat_id, f'Repeat by N ?:',
-                         reply_markup=InlineKeyboardMarkup(
-                             [[InlineKeyboardButton('Minutes', 'minutes'), InlineKeyboardButton('Hours', 'hours')],
-                              [InlineKeyboardButton('Days', 'days'), InlineKeyboardButton('Weeks', 'weeks')],
-                              [InlineKeyboardButton('Never', 'n')]]))
+        bot.edit_message_text(chat_id, message_id=msg_id, text=f'Repeat by N ?:',
+                              reply_markup=InlineKeyboardMarkup(
+                                  [[InlineKeyboardButton('Minutes', 'minutes'), InlineKeyboardButton('Hours', 'hours')],
+                                   [InlineKeyboardButton('Days', 'days'), InlineKeyboardButton('Weeks', 'weeks')],
+                                   [InlineKeyboardButton('Never', 'n')]]))
     elif status in ['days', 'hours', 'minutes', 'weeks']:
-        bot.send_message(chat_id, f'Repeat every ? {status}')
+        bot.edit_message_text(chat_id, message_id=msg_id, text=f'Repeat every ? {status}')
     elif status == 's':
         msg_id = query.message.id
         dst = chat_id if chat.destination == 'here' else int(chat.destination)
         add(dst, str(msg_id) + str(chat_id), chat.msg, chat.start, chat.end, chat.repeat)
-        bot.send_message(chat_id, 'Reminder added successfully', reply_markup=InlineKeyboardMarkup(home_key))
+        bot.edit_message_text(chat_id, message_id=msg_id, text='Reminder added successfully',
+                              reply_markup=InlineKeyboardMarkup(home_key))
         repeat = chat.repeat.split()
         if len(repeat) == 3:
             chatId_account[dst].messages[f'{msg_id}{chat_id}'] = scheduler.add_job(send_msg, trigger='interval',
@@ -279,9 +290,9 @@ def handle_callback_query(bot: Client, query: CallbackQuery):
         if status == 'du':
             for user in whitelist:
                 users += f'@{bot.get_users(user[0]).username}: `{user[0]}`\n'
-        bot.send_message(chat_id, users + 'enter UserID:')
+        bot.edit_message_text(chat_id, message_id=msg_id, text=users + 'enter UserID:')
     elif status == 'dst':
-        bot.send_message(chat_id, 'enter ChatID or "here": ')
+        bot.edit_message_text(chat_id, message_id=msg_id, text='enter ChatID or "here": ')
     else:
         chatId_account[chat_id].send_status = 0
 
