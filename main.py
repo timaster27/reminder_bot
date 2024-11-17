@@ -178,12 +178,12 @@ def handle_message(bot: Client, message: Message):
                                        InlineKeyboardButton(f'end date: {end_date}', 'ed')],
                                       [InlineKeyboardButton(f'repeat: {chat.repeat}', 'r'),
                                        InlineKeyboardButton('Submit', 's')]]))
-        else:
-            try:
-                if message.reply_to_message.from_user.is_self:
-                    bot.send_message(chat_id, 'invalid message')
-            except AttributeError:
-                pass
+        # else:
+        #     try:
+        #         if message.reply_to_message.from_user.is_self:
+        #             bot.send_message(chat_id, 'invalid message')
+        #     except AttributeError:
+        #         pass
         chatId_account[chat_id].send_status = 0
 
 
